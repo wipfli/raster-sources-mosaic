@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Raster Sources Mosaic</title>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@4.5.2/dist/maplibre-gl.css' />
+    <script src='https://unpkg.com/maplibre-gl@4.5.2/dist/maplibre-gl.js'></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body,
+        #map {
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+<div id="map"></div>
+
+<script>
+
+function isTileInParent(z, x, y, parentZ, parentX, parentY) {
+    // Ensure the child's zoom level is greater than or equal to the parent's zoom level
+    if (z < parentZ) {
+        return false;
+    }
+
+    // Calculate the scale difference
+    const scale = Math.pow(2, z - parentZ);
+
+    // Calculate the x and y range covered by the parent tile at zoom level z
+    const minX = parentX * scale;
+    const maxX = (parentX + 1) * scale - 1;
+
+    const minY = parentY * scale;
+    const maxY = (parentY + 1) * scale - 1;
+
+    // Check if the given tile (z, x, y) is within the range
+    return minX <= x && x <= maxX && minY <= y && y <= maxY;
+}
+
+maplibregl.addProtocol('custom', async (params, abortController) => {
+
+    const [z, x, y] = params.url.replace('custom://', '').split('/');
+
+    let url = `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+
+    if (isTileInParent(z, x, y, 11, 1072, 717)) {
+        url = `https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage/default/current/3857/${z}/${x}/${y}.jpeg`
+    }
+
+    const t = await fetch(url);
+
+    if (t.status === 200) {
+        return {data: await t.arrayBuffer()};
+    } else {
+        throw new Error(`Tile fetch error: ${t.statusText}`);
+    }
+});
+
+const map = new maplibregl.Map({
+    container: 'map',
+    hash: 'map',
+    style: {
+        'version': 8,
+        'sources': {
+            'raster-tiles': {
+                'type': 'raster',
+                'tiles': ['custom://{z}/{x}/{y}'],
+                'tileSize': 256,
+                'minzoom': 0,
+                'maxzoom': 22
+            }
+        },
+        'layers': [
+            {
+                'id': 'my-layer',
+                'type': 'raster',
+                'source': 'raster-tiles'
+            }
+        ]
+    },
+    center: [8.5354, 47.33],
+    zoom: 11.5
+});
+</script>
+</body>
+
+</html>
